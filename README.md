@@ -83,6 +83,10 @@ The Node server serves the compiled frontend and API from the same origin. Set `
 - [Security posture and production checklist](docs/SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
 
+## Public demo and deployment boundary
+
+The /demo route is a static, read-only sample and is suitable for static hosting. The authenticated API and SQLite database are not included in the static demo deployment. Do not treat the hosted sample as a live account or data service. See SECURITY.md before deploying the authenticated application.
+
 ## Security and production readiness
 
 The MVP includes salted scrypt password hashing, hashed random session tokens, session expiry/revocation, HttpOnly cookies, server-side validation, per-user ownership checks and a deliberately restricted public client response.

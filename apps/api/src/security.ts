@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 export const SESSION_COOKIE = 'scopebeacon_session';
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -23,4 +23,9 @@ export function createSessionToken(): string {
 
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+export function hashRateLimitKey(value: string): string {
+  const secret = process.env.RATE_LIMIT_SECRET ?? 'scopebeacon-local-development-only';
+  return createHmac('sha256', secret).update(value).digest('hex');
 }

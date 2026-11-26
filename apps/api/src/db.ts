@@ -11,6 +11,11 @@ export function createDatabase(path = process.env.DB_PATH ?? './data/scopebeacon
   db.exec(`
     PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS auth_rate_limits (
+      key_hash TEXT PRIMARY KEY,
+      window_started_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -67,5 +72,7 @@ export function createDatabase(path = process.env.DB_PATH ?? './data/scopebeacon
     );
     CREATE INDEX IF NOT EXISTS activity_project_id_idx ON activity(project_id, created_at DESC);
   `);
+  db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(new Date().toISOString());
+  db.prepare('DELETE FROM auth_rate_limits WHERE window_started_at < ?').run(Date.now() - 24 * 60 * 60 * 1000);
   return db;
 }

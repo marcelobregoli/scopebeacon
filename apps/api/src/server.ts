@@ -4,6 +4,9 @@ import {serveStatic} from '@hono/node-server/serve-static';
 import {createApp} from './app.js';
 import {createDatabase} from './db.js';
 
+if (process.env.NODE_ENV === 'production' && !process.env.RATE_LIMIT_SECRET) {
+  throw new Error('RATE_LIMIT_SECRET must be configured before running the API in production.');
+}
 const port=Number(process.env.PORT??8787);
 const db=createDatabase();
 const app=createApp(db);

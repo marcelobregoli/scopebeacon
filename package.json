@@ -9,6 +9,7 @@
     "dev:api": "tsx watch apps/api/src/server.ts",
     "dev:web": "vite --host 127.0.0.1",
     "build": "tsc -p apps/api/tsconfig.json && vite build",
+    "build:web": "vite build",
     "start": "tsx apps/api/src/server.ts",
     "test": "vitest run",
     "test:watch": "vitest",

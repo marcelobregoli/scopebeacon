@@ -1,9 +1,11 @@
 import { Hono, type MiddlewareHandler } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { secureHeaders } from 'hono/secure-headers';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { ScopeBeaconDatabase } from './db.js';
-import { createSessionToken, hashPassword, hashToken, SESSION_COOKIE, SESSION_TTL_SECONDS, verifyPassword } from './security.js';
+import { createSessionToken, hashPassword, hashToken, SESSION_COOKIE, SESSION_TTL_SECONDS, verifyPassword, hashRateLimitKey } from './security.js';
 
 type User = { id: string; name: string; email: string };
 type Env = { Variables: { user: User } };
@@ -23,6 +25,46 @@ function ownedProject(db: ScopeBeaconDatabase, projectId: string, userId: string
 export function createApp(db: ScopeBeaconDatabase, options: { secureCookies?: boolean } = {}) {
   const app = new Hono<Env>();
   const secureCookies = options.secureCookies ?? process.env.NODE_ENV === 'production';
+
+  app.use('*', secureHeaders({
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"], baseUri: ["'self'"], connectSrc: ["'self'"],
+      fontSrc: ["'self'", 'data:'], formAction: ["'self'"], frameAncestors: ["'none'"],
+      imgSrc: ["'self'", 'data:', 'https:'], objectSrc: ["'none'"], scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], styleSrcAttr: ["'unsafe-inline'"],
+      upgradeInsecureRequests: [],
+    },
+  }));
+  app.use('/api/*', bodyLimit({ maxSize: 64 * 1024 }));
+  app.use('/api/*', async (c, next) => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method)) {
+      const origin = c.req.header('origin');
+      if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: 'Cross-origin request rejected.' }, 403);
+    }
+    await next();
+  });
+
+  function rateLimit(keys: string[], maxAttempts: number, windowMs: number): number | null {
+    const timestamp = Date.now();
+    for (const key of keys) {
+      const keyHash = hashRateLimitKey(key);
+      const row = db.prepare('SELECT window_started_at, attempts FROM auth_rate_limits WHERE key_hash = ?')
+        .get(keyHash) as { window_started_at: number; attempts: number } | undefined;
+      if (!row || timestamp - row.window_started_at >= windowMs) {
+        db.prepare('INSERT OR REPLACE INTO auth_rate_limits (key_hash, window_started_at, attempts) VALUES (?, ?, 1)').run(keyHash, timestamp);
+        continue;
+      }
+      if (row.attempts >= maxAttempts) return Math.max(1, Math.ceil((row.window_started_at + windowMs - timestamp) / 1000));
+      db.prepare('UPDATE auth_rate_limits SET attempts = attempts + 1 WHERE key_hash = ?').run(keyHash);
+    }
+    db.prepare('DELETE FROM auth_rate_limits WHERE window_started_at < ?').run(timestamp - 24 * 60 * 60 * 1000);
+    return null;
+  }
+
+  function clientAddress(c: any): string {
+    const forwarded = c.req.header('cf-connecting-ip') ?? c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    return forwarded || 'unknown-client';
+  }
 
   const requireUser: MiddlewareHandler<Env> = async (c, next) => {
     const token = getCookie(c, SESSION_COOKIE);
@@ -62,6 +104,8 @@ export function createApp(db: ScopeBeaconDatabase, options: { secureCookies?: bo
     const parsed = schema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: 'Enter a name, valid email and password of at least 10 characters.' }, 400);
     const { name, email, password } = parsed.data;
+    const retryAfter = rateLimit(['register:ip:' + clientAddress(c), 'register:email:' + email.toLowerCase()], 5, 60 * 60 * 1000);
+    if (retryAfter !== null) { c.header('Retry-After', String(retryAfter)); return c.json({ error: 'Too many registration attempts. Try again later.' }, 429); }
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email) as { id: string } | undefined;
     if (existing) return c.json({ error: 'An account with this email already exists.' }, 409);
     const id = randomUUID();
@@ -75,6 +119,8 @@ export function createApp(db: ScopeBeaconDatabase, options: { secureCookies?: bo
     const schema = z.object({ email: z.string().trim().email(), password: z.string().min(1).max(128) });
     const parsed = schema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: 'Enter a valid email and password.' }, 400);
+    const retryAfter = rateLimit(['login:ip:' + clientAddress(c), 'login:email:' + parsed.data.email.toLowerCase()], 10, 15 * 60 * 1000);
+    if (retryAfter !== null) { c.header('Retry-After', String(retryAfter)); return c.json({ error: 'Too many sign-in attempts. Try again later.' }, 429); }
     const row = db.prepare('SELECT * FROM users WHERE email = ?').get(parsed.data.email) as any;
     if (!row || !verifyPassword(parsed.data.password, row.password_hash)) return c.json({ error: 'Email or password is incorrect.' }, 401);
     issueSession(c, row.id);
