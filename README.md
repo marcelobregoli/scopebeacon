@@ -2,6 +2,8 @@
 
 **Project delivery, clearly.**
 
+**Live sample:** https://scopebeacon-demo.vercel.app/demo
+
 ScopeBeacon is a full-stack project workspace for independent developers and small teams. Organize client work, track delivery and share progress without exposing internal task notes.
 
 ![ScopeBeacon sample workspace](docs/screenshots/demo-dashboard.png)
