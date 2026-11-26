@@ -1,0 +1,11 @@
+export type User = { id: string; name: string; email: string };
+export type ProjectStatus = 'active' | 'on-hold' | 'completed';
+export type TaskStatus = 'todo' | 'in-progress' | 'done';
+export type Priority = 'low' | 'normal' | 'high';
+export type MilestoneStatus = 'upcoming' | 'in-progress' | 'complete';
+export type Project = { id:string; user_id:string; name:string; client_name:string; description:string; status:ProjectStatus; share_token:string|null; created_at:string; updated_at:string; task_count?:number; completed_task_count?:number; milestone_count?:number };
+export type Task = { id:string; project_id:string; title:string; status:TaskStatus; priority:Priority; due_date:string|null; created_at:string; updated_at:string };
+export type Milestone = { id:string; project_id:string; title:string; due_date:string|null; status:MilestoneStatus; created_at:string; updated_at:string };
+export type Activity = { id:string; message:string; created_at:string };
+export type ProjectDetail = { project:Project; tasks:Task[]; milestones:Milestone[]; activity:Activity[] };
+export type PublicProject = { project:Pick<Project,'id'|'name'|'client_name'|'description'|'status'|'created_at'|'updated_at'>; milestones:Pick<Milestone,'title'|'due_date'|'status'>[]; progress:{totalTasks:number;completedTasks:number} };
