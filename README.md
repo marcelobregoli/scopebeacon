@@ -87,7 +87,7 @@ The Node server serves the compiled frontend and API from the same origin. Set `
 
 ## Public demo and deployment boundary
 
-The /demo route is a static, read-only sample and is suitable for static hosting. The authenticated API and SQLite database are not included in the static demo deployment. Do not treat the hosted sample as a live account or data service. See SECURITY.md before deploying the authenticated application.
+The hosted deployment is built in demo-only mode: all routes except /demo redirect to the static, read-only sample workspace. The sample uses fictional data; account creation, login, API and SQLite are not deployed. The authenticated application can still be run locally using the setup below. See SECURITY.md before deploying the authenticated application.
 
 ## Security and production readiness
 
