@@ -8,3 +8,8 @@ data/*.sqlite
 data/*.sqlite-*
 *.log
 .DS_Store
+
+.wrangler/
+
+.dev.vars
+.wrangler/

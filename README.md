@@ -2,7 +2,7 @@
 
 **Project delivery, clearly.**
 
-**Live sample:** https://scopebeacon-demo.vercel.app/demo
+**Live application:** https://scopebeacon.digitaligamesml.workers.dev
 
 ScopeBeacon is a full-stack project workspace for independent developers and small teams. Organize client work, track delivery and share progress without exposing internal task notes.
 
@@ -30,12 +30,13 @@ Client updates should not require another meeting, another account or access to 
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, TypeScript, Vite 8 |
-| API | Hono 4, Node.js |
-| Database | SQLite via Node's built-in `node:sqlite` |
+| API | Hono 4 on Cloudflare Workers |
+| Database | Cloudflare D1 (SQLite-compatible SQL) |
 | Validation | Zod |
-| Authentication | scrypt password hashes, random server-side sessions, HttpOnly cookies |
+| Authentication | PBKDF2-SHA256 password hashes, random server-side sessions, HttpOnly cookies |
 | Tests | Vitest |
-| CI | GitHub Actions |
+| CI/CD | GitHub Actions + Wrangler |
+| Source of truth | GitHub (`marcelobregoli/scopebeacon`) |
 
 ## Run locally
 
@@ -47,36 +48,30 @@ cp .env.example .env
 npm run dev
 ```
 
-The development environment starts:
-
-- Web app: http://127.0.0.1:5173
-- API health: http://127.0.0.1:5173/api/health
-- Sample workspace: http://127.0.0.1:5173/demo
-
-The API runs separately on port 8792 and Vite proxies `/api` requests. SQLite is created automatically at `data/scopebeacon.sqlite`; the database and environment file are excluded from Git.
+The local development API remains Node/Hono + SQLite for a fast offline workflow. It starts on port 8792; Vite proxies `/api` requests. The local database is created at `data/scopebeacon.sqlite`; the database and environment file are excluded from Git.
 
 ## Verify
-
-With the development server running:
 
 ```bash
 npm test
 npm run typecheck
-npm run build
-npm run smoke
+npm run typecheck:worker
+npm run build:web
 npm audit --audit-level=high
 ```
 
-The smoke test exercises registration, project creation, task/milestone creation, client sharing, aggregate progress, privacy boundaries and share revocation. It also checks frontend routes and built assets. Set `SMOKE_URL` to target another running instance.
+## Cloudflare deployment
 
-## Production-style local run
+The hosted application uses one Cloudflare Worker for Hono API routes and React static assets, with a dedicated D1 database. Wrangler configuration and SQL migrations are version-controlled in this repository.
 
 ```bash
-npm run build
-NODE_ENV=production npm start
+npx wrangler d1 migrations apply scopebeacon-production --remote
+npx wrangler secret put RATE_LIMIT_SECRET
+npm run build:web
+npx wrangler deploy
 ```
 
-The Node server serves the compiled frontend and API from the same origin. Set `PORT` and `DB_PATH` in the environment or `.env` file. Use a persistent disk for the SQLite database and back it up regularly.
+For automatic deployment from GitHub Actions, add a repository Actions secret named `CLOUDFLARE_API_TOKEN` with a narrowly scoped token that can edit Workers and D1 in the intended Cloudflare account. Never commit API tokens or runtime secrets. The workflow applies D1 migrations and deploys the Worker on pushes to `main`.
 
 ## Documentation
 
@@ -85,15 +80,11 @@ The Node server serves the compiled frontend and API from the same origin. Set `
 - [Security posture and production checklist](docs/SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
 
-## Public demo and deployment boundary
-
-The hosted deployment is built in demo-only mode: all routes except /demo redirect to the static, read-only sample workspace. The sample uses fictional data; account creation, login, API and SQLite are not deployed. The authenticated application can still be run locally using the setup below. See SECURITY.md before deploying the authenticated application.
-
 ## Security and production readiness
 
-The MVP includes salted scrypt password hashing, hashed random session tokens, session expiry/revocation, HttpOnly cookies, server-side validation, per-user ownership checks and a deliberately restricted public client response.
+The Worker uses PBKDF2-SHA256 with per-user random salts, hashed random session tokens, expiring server-side sessions, HttpOnly/SameSite cookies, server-side validation, per-user ownership checks, persistent HMAC-keyed authentication throttles, restrictive security headers and a deliberately restricted public client response. Password derivation uses Web Crypto APIs supported by Workers.
 
-Before real client data is stored, add persistent rate limiting, email verification and password reset, operational monitoring, automated backups/restore testing, privacy and retention policies, and a reviewed deployment configuration. See [SECURITY.md](docs/SECURITY.md).
+ScopeBeacon remains a portfolio MVP. Email verification/password reset, monitoring/abuse response, tested backups/restore, account export/deletion, privacy/retention review and independent production security review remain open. Do not enter real client data until those controls are completed and reviewed.
 
 ## Attribution
 

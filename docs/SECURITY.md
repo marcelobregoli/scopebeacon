@@ -1,36 +1,34 @@
 # Security posture and production checklist
 
-## Implemented in the MVP
+## Implemented
 
-- scrypt password hashing with a random per-user salt.
-- Constant-time password hash comparison.
+- Production Worker password hashing: PBKDF2-SHA256, per-user random 128-bit salt, 310,000 iterations, Web Crypto.
+- Local Node development adapter: scrypt with per-user random salt.
 - Random 256-bit session tokens; only SHA-256 token hashes are stored.
-- HttpOnly and SameSite=Lax session cookies; Secure is enabled when `NODE_ENV=production`.
-- Session expiration and server-side logout/revocation.
-- Server-side Zod validation for request payloads.
-- Per-user ownership checks for project, task and milestone operations.
+- HttpOnly, Secure and SameSite=Lax session cookies in the Cloudflare Worker.
+- Session expiration and server-side logout/revocation; daily scheduled cleanup.
+- Server-side Zod validation and per-user ownership checks.
 - Public client response is a restricted projection, not a serialized private project record.
-- SQLite foreign keys and cascading deletion for owned records.
-- Persistent SQLite-backed registration and sign-in throttles (registration: 5 attempts/IP/hour; sign-in: 10 attempts/IP and email/15 minutes); rate-limit identifiers are HMAC-hashed rather than stored as raw email/IP values.
-- Security response headers including a restrictive Content Security Policy, frame denial, MIME sniffing protection and referrer policy.
+- D1 foreign keys and cascading deletion for owned records.
+- Persistent D1-backed registration and sign-in throttles (registration: 5 attempts/IP/hour; sign-in: 10 attempts/IP and email/15 minutes); rate-limit identifiers are HMAC-hashed rather than stored as raw email/IP values.
+- Restrictive Content Security Policy and security response headers.
 - API request bodies limited to 64 KiB.
 - Browser state-changing API requests with a mismatched Origin are rejected; session cookies remain HttpOnly and SameSite=Lax.
-- Expired sessions and stale rate-limit rows are cleaned on database startup.
-- Dependency audit runs in CI.
+- SQL schema versioned as Wrangler D1 migrations.
+- Dependency audit and tests run in GitHub Actions.
 
-## Required before handling real client data in production
+## Required before handling real client data
 
-- Add distributed rate limiting/abuse monitoring if the API is scaled beyond one SQLite-backed instance. Configure the reverse proxy to overwrite client-IP forwarding headers; never trust client-supplied forwarding headers directly.
 - Add email verification and password reset with expiring single-use tokens.
-- Add a documented CSRF policy if the app is ever deployed cross-site or cookie settings change.
-- Configure HTTPS, trusted-proxy handling, security-header review and infrastructure-level request-size limits at the hosting edge.
-- Add database backup/restore automation and test recovery.
-- Add session cleanup, account deletion/export and audit retention policies.
-- Review privacy notice, terms, data retention and jurisdictional requirements.
+- Add monitoring, alerting and an abuse-response procedure.
+- Configure and test D1 backup/export and restore procedures; document recovery objectives.
+- Add account deletion/export and privacy/retention controls.
+- Review privacy notice, terms and jurisdictional requirements.
 - Add dependency update automation and scheduled security scans.
+- Conduct an independent deployment and application security review.
 
 ## Deployment boundary
 
-The public portfolio demo is a static, read-only sample workspace and does not call the API or require a database. The authenticated Node.js API uses node:sqlite and a local persistent database file; it must not be deployed to an ephemeral serverless filesystem. A future authenticated deployment needs a persistent database/volume (or a deliberate migration to a managed database), a stable high-entropy RATE_LIMIT_SECRET, tested backups/restores, monitoring, email verification/password reset, account export/deletion, and a full privacy/security review. The Node server refuses production startup if RATE_LIMIT_SECRET is missing.
+Production is a Cloudflare Worker with Workers Static Assets and D1. Local development continues to use a Node/Hono API and local SQLite database. The production Worker does not write to a local filesystem. The D1 database is isolated from other Cloudflare projects and ventures.
 
-ScopeBeacon remains a portfolio MVP. The hosted demo is not a production client-data system. Do not enter real client data until the remaining controls and deployment architecture are independently reviewed.
+ScopeBeacon remains a portfolio MVP, not a reviewed production client-data system. Do not enter real client data until the remaining controls and deployment architecture are independently reviewed.
