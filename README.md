@@ -4,7 +4,7 @@
 
 **Live application:** https://scopebeacon.digitaligamesml.workers.dev
 
-**Project case study:** https://marcelo-bregoli.pages.dev/projects/scopebeacon.html
+**Project case study:** https://marcelo-bregoli.pages.dev/projects/scopebeacon
 
 ScopeBeacon is a full-stack project workspace for independent developers and small teams. Organize client work, track delivery and share progress without exposing internal task notes.
 
